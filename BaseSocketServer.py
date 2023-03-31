@@ -44,32 +44,37 @@ class BaseSocketServer(object):
 
         while True:
             self.__checkDate()
-            read_sock, output_sock, except_sock=select.select(self.__sock_list, [], self.__sock_list, 5.0)
+            try:
+                read_sock, output_sock, except_sock=select.select(self.__sock_list, [], self.__sock_list, 5.0)
 
-            for notified_socket in read_sock:
-                notified_socket.settimeout(1)
-                if notified_socket == self.__socket:
-                    client_socket, address=self.__socket.accept()
-                    print(f'connection from {address} has been established.')
-                    self.__sock_list.append(client_socket)
-                    self.__clients[client_socket] = address
-                    continue
-                message = self.__messageRecv(notified_socket)
-                if not message:
-                    print(f'Closed connection from: {self.__clients[notified_socket]}')
+                for notified_socket in read_sock:
+                    notified_socket.settimeout(1)
+                    if notified_socket == self.__socket:
+                        client_socket, address=self.__socket.accept()
+                        print(f'connection from {address} has been established.')
+                        self.__sock_list.append(client_socket)
+                        self.__clients[client_socket] = address
+                        continue
+                    message = self.__messageRecv(notified_socket)
+                    if not message:
+                        print(f'Closed connection from: {self.__clients[notified_socket]}')
+                        self.__sock_list.remove(notified_socket)
+                        del self.__clients[notified_socket]
+                        continue
+
+                    functionName, functionParameter= message.split("*")
+                    f = self.__commandDict.get(functionName)
+
+                    f(functionParameter)
+
+                for notified_socket in except_sock:
                     self.__sock_list.remove(notified_socket)
-                    del self.__clients[notified_socket]
-                    continue
-
-                functionName, functionParameter= message.split("*")
-                f = self.__commandDict.get(functionName)
-
-                f(functionParameter)
-
-            for notified_socket in except_sock:
-                self.__sock_list.remove(notified_socket)
+                    
+                time.sleep(self.__idleTime)
                 
-            time.sleep(self.__idleTime)
+            except KeyboardInterrupt:
+                self.__socket.close()
+                sys.exit()
                 # print(notified_socket)
                 # print('sleeping....')
                 # time.sleep(5)
